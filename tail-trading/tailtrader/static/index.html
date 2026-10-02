@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tail Trader</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--line:#262b36;--text:#e6e8ee;--mute:#8a92a6;--up:#2fbf71;--down:#ef5b5b;--warn:#e7b549;--acc:#6aa6ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+  h1{font-size:17px;margin:0;letter-spacing:.2px} h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--mute);margin:0 0 10px}
+  .badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;margin-left:8px;vertical-align:2px}
+  .paper{background:#2a2f3d;color:var(--warn)} .live{background:#3b1d1d;color:#ff8c8c}
+  main{padding:16px 20px;display:grid;gap:16px;grid-template-columns:repeat(12,1fr);max-width:1400px;margin:auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+  .s12{grid-column:span 12}.s8{grid-column:span 8}.s4{grid-column:span 4}.s6{grid-column:span 6}
+  @media(max-width:900px){.s8,.s4,.s6{grid-column:span 12}}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+  .kpi .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}.kpi .l{color:var(--mute);font-size:12px}
+  .up{color:var(--up)}.down{color:var(--down)}.mute{color:var(--mute)}.warn{color:var(--warn)}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mute);font-weight:500;font-size:12px} td.r,th.r{text-align:right}
+  .scroll{overflow:auto;max-height:520px}
+  button{background:#232836;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 11px;cursor:pointer;font:inherit}
+  button:hover{border-color:var(--acc)} button.primary{background:var(--acc);color:#0b1020;border-color:var(--acc);font-weight:600}
+  button.danger{background:#3b1d1d;border-color:#5a2a2a;color:#ffb3b3}
+  input{background:#0f1218;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 8px;font:inherit;min-width:0}
+  form.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px} form.row input{flex:1 1 110px}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:#232836}
+  .pill.filled{background:#173526;color:#7fe0aa}.pill.skipped{color:var(--mute)}.pill.no_fill,.pill.partial{background:#3a3016;color:var(--warn)}
+  .pill.error{background:#3b1d1d;color:#ffb3b3}.pill.settled{background:#1c2a44;color:#9cc3ff}
+  .reason{color:var(--mute);font-size:12px;max-width:520px}
+  .banner{grid-column:span 12;padding:10px 14px;border-radius:8px;background:#3a3016;color:#f5d58a;display:none}
+  svg{width:100%;height:120px;display:block}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Tail Trader <span id="mode" class="badge paper">PAPER</span></h1>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span id="updated" class="mute" style="font-size:12px"></span>
+    <button id="pauseBtn" class="danger">Pause new buys</button>
+  </div>
+</header>
+<main>
+  <div id="banner" class="banner"></div>
+
+  <section class="card s12">
+    <div class="kpis">
+      <div class="kpi"><div class="l">Equity</div><div class="v" id="equity">–</div></div>
+      <div class="kpi"><div class="l">Today</div><div class="v" id="today">–</div></div>
+      <div class="kpi"><div class="l">Since start</div><div class="v" id="total">–</div></div>
+      <div class="kpi"><div class="l">Cash</div><div class="v" id="cash">–</div></div>
+      <div class="kpi"><div class="l">In positions (cost)</div><div class="v" id="exposure">–</div></div>
+    </div>
+    <svg id="chart" viewBox="0 0 1000 120" preserveAspectRatio="none"></svg>
+  </section>
+
+  <section class="card s8">
+    <h2>Personas</h2>
+    <table><thead><tr><th>Name</th><th>Wallet</th><th class="r">Weight</th><th class="r">Mult.</th><th class="r">Copied</th><th class="r">Skipped</th><th class="r">Open $</th><th></th></tr></thead>
+      <tbody id="personas"></tbody></table>
+    <form class="row" id="addPersona">
+      <input name="name" placeholder="Nickname" required>
+      <input name="wallet" placeholder="0x… wallet or profile link" style="flex:3 1 260px" required>
+      <input name="weight" placeholder="Weight (0.5)" inputmode="decimal">
+      <input name="bankroll_usd" placeholder="Their bankroll $ (optional)" inputmode="decimal">
+      <button class="primary">Follow</button>
+    </form>
+    <div id="personaMsg" class="reason" style="margin-top:6px"></div>
+  </section>
+
+  <section class="card s4">
+    <h2>Needs your approval</h2>
+    <div id="reviews" class="mute">Nothing waiting.</div>
+  </section>
+
+  <section class="card s12">
+    <h2>Open positions</h2>
+    <div class="scroll"><table><thead><tr><th>Persona</th><th>Kalshi market</th><th>Side</th><th class="r">Contracts</th><th class="r">Cost</th><th class="r">Avg</th></tr></thead>
+      <tbody id="holdings"></tbody></table></div>
+  </section>
+
+  <section class="card s12">
+    <h2>Activity</h2>
+    <div class="scroll"><table><thead><tr><th>Time</th><th>Persona</th><th>Their trade</th><th>Our action</th><th>Status</th><th>Detail</th></tr></thead>
+      <tbody id="log"></tbody></table></div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const usd = v => v == null || isNaN(v) ? '–' : (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const signed = v => v == null || isNaN(v) ? '–' : (v >= 0 ? '+' : '') + usd(v).replace('$-','-$');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const t = ts => new Date(ts*1000).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const post = (url, body) => fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+let S = null;
+
+function cls(v){ return v > 0 ? 'up' : v < 0 ? 'down' : '' }
+
+function render(s){
+  S = s;
+  const m = $('#mode'); m.textContent = s.mode.toUpperCase(); m.className = 'badge ' + s.mode;
+  const a = s.account || {};
+  $('#equity').textContent = usd(a.equity); $('#cash').textContent = usd(a.cash); $('#exposure').textContent = usd(a.exposure);
+  const today = s.day_start_equity ? a.equity - s.day_start_equity : null;
+  $('#today').textContent = signed(today); $('#today').className = 'v ' + cls(today);
+  const start = s.paper_start || (s.equity[0] && s.equity[0].equity);
+  const tot = start ? a.equity - start : null;
+  $('#total').textContent = tot == null ? '–' : signed(tot) + ` (${(tot/start*100).toFixed(1)}%)`; $('#total').className = 'v ' + cls(tot);
+  $('#updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+  const b = $('#banner'), msgs = [];
+  if (s.paused) msgs.push('New buys are paused. Exits still mirror the trader.');
+  if (s.loss_paused) msgs.push('Daily loss limit reached: new buys paused until midnight UTC.');
+  if (!s.judge) msgs.push('No ANTHROPIC_API_KEY set: every market match waits for your approval below.');
+  if (!s.alerts) msgs.push('Phone alerts are off. Set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID or DISCORD_WEBHOOK_URL.');
+  if (a.error) msgs.push('Account error: ' + a.error);
+  b.style.display = msgs.length ? 'block' : 'none'; b.innerHTML = msgs.map(esc).join('<br>');
+  $('#pauseBtn').textContent = s.paused ? 'Resume buys' : 'Pause new buys';
+  $('#pauseBtn').className = s.paused ? 'primary' : 'danger';
+
+  // chart
+  const pts = s.equity.map(p => p.equity); if (a.equity != null) pts.push(a.equity);
+  if (pts.length > 1){
+    const lo = Math.min(...pts), hi = Math.max(...pts), span = (hi - lo) || 1;
+    const d = pts.map((v,i) => `${i? 'L':'M'}${(i/(pts.length-1)*1000).toFixed(1)},${(112 - (v-lo)/span*104).toFixed(1)}`).join('');
+    const col = pts[pts.length-1] >= pts[0] ? 'var(--up)' : 'var(--down)';
+    $('#chart').innerHTML = `<path d="${d}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+  } else $('#chart').innerHTML = '<text x="500" y="65" fill="#8a92a6" text-anchor="middle" font-size="13">Equity history appears after a few minutes</text>';
+
+  $('#personas').innerHTML = s.personas.map(p => {
+    const st = p.status || {}, live = p.enabled ? (st.ok === false ? 'var(--down)' : st.ok ? 'var(--up)' : 'var(--warn)') : 'var(--mute)';
+    return `<tr><td><span class="dot" style="background:${live}" title="${esc(st.error || '')}"></span>${esc(p.name)}</td>
+      <td class="mute"><a style="color:inherit" target="_blank" href="https://polymarket.com/profile/${esc(p.wallet)}">${esc(p.wallet.slice(0,8))}…${esc(p.wallet.slice(-4))}</a></td>
+      <td class="r">${(+p.weight).toFixed(2)}</td><td class="r">${(+p.multiplier).toFixed(2)}</td>
+      <td class="r">${p.copied||0}</td><td class="r">${p.skipped||0}</td><td class="r">${usd(p.open_cost)}</td>
+      <td class="r"><button data-toggle="${esc(p.name)}" data-en="${p.enabled?0:1}">${p.enabled ? 'Stop' : 'Start'}</button></td></tr>`;
+  }).join('') || '<tr><td colspan="8" class="mute">No personas yet — add a trader below.</td></tr>';
+
+  $('#reviews').innerHTML = s.reviews.length ? s.reviews.map(r => `
+    <div style="border-bottom:1px solid var(--line);padding:8px 0">
+      <div><b>${esc(r.poly_title)}</b> <span class="pill">${esc(r.outcome)}</span></div>
+      <div class="reason">↔ Kalshi <b>${esc(r.ticker)}</b> ${esc(r.kalshi_title||'')}${r.side ? ' · side ' + esc(r.side.toUpperCase()) : ''} · ${Math.round((r.confidence||0)*100)}%</div>
+      <div class="reason">${esc(r.reason)}</div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        ${r.side ? `<button class="primary" data-map="approve" data-c="${esc(r.condition_id)}" data-o="${esc(r.outcome)}">Approve</button>` :
+          `<button data-map="approve" data-side="yes" data-c="${esc(r.condition_id)}" data-o="${esc(r.outcome)}">Approve as YES</button>
+           <button data-map="approve" data-side="no" data-c="${esc(r.condition_id)}" data-o="${esc(r.outcome)}">Approve as NO</button>`}
+        <button data-map="reject" data-c="${esc(r.condition_id)}" data-o="${esc(r.outcome)}">Not a match</button>
+      </div></div>`).join('') : 'Nothing waiting.';
+
+  $('#holdings').innerHTML = s.holdings.map(h => `<tr><td>${esc(h.persona)}</td><td>${esc(h.ticker)}<div class="reason">${esc(h.title||'')}</div></td>
+    <td>${esc(h.side.toUpperCase())}</td><td class="r">${(+h.count).toFixed(2)}</td><td class="r">${usd(h.cost)}</td><td class="r">${usd(h.cost/h.count)}</td></tr>`).join('')
+    || '<tr><td colspan="6" class="mute">No open positions.</td></tr>';
+
+  $('#log').innerHTML = s.log.map(l => {
+    const theirs = l.src_side ? `${esc(l.src_side)} ${esc(l.outcome)} @${(+l.src_price).toFixed(2)} · ${usd(l.src_usdc)}<div class="reason">${esc(l.title)}</div>` : `<span class="mute">${esc(l.title || l.kind)}</span>`;
+    const ours = l.ticker ? `${esc(l.kind.toUpperCase())} ${l.count ? (+l.count).toFixed(2) : ''} ${esc((l.kalshi_side||'').toUpperCase())} ${esc(l.ticker)}${l.price ? ' @' + (+l.price).toFixed(2) : ''}` : '<span class="mute">—</span>';
+    return `<tr><td class="mute" style="white-space:nowrap">${t(l.ts)}</td><td>${esc(l.persona)}</td><td>${theirs}</td><td>${ours}</td>
+      <td><span class="pill ${esc(l.status)}">${esc(l.status)}</span></td><td class="reason">${esc(l.reason)}</td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="mute">Waiting for the first trade…</td></tr>';
+}
+
+async function refresh(){ try { render(await (await fetch('/api/state')).json()) } catch(e){ $('#updated').textContent = 'Connection lost — retrying' } }
+
+document.addEventListener('click', async e => {
+  const el = e.target.closest('button'); if (!el) return;
+  if (el.id === 'pauseBtn') { await post('/api/pause', {paused: !S.paused}); }
+  else if (el.dataset.toggle) { await post('/api/persona', {name: el.dataset.toggle, enabled: el.dataset.en === '1'}); }
+  else if (el.dataset.map) { await post('/api/mapping', {action: el.dataset.map, condition_id: el.dataset.c, outcome: el.dataset.o, side: el.dataset.side}); }
+  else return;
+  refresh();
+});
+$('#addPersona').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  if (!f.weight) delete f.weight;
+  const r = await post('/api/persona', f);
+  $('#personaMsg').textContent = r.error || r.warning || `Following ${f.name}. Only new trades are copied.`;
+  if (!r.error) e.target.reset();
+  refresh();
+});
+refresh(); setInterval(refresh, 5000);
+</script>
+</body>
+</html>

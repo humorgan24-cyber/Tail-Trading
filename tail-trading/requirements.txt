@@ -1,0 +1,5 @@
+requests>=2.31
+starlette>=0.37
+uvicorn>=0.29
+cryptography>=42
+PyYAML>=6

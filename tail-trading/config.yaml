@@ -1,0 +1,38 @@
+# Tail Trader settings. Secrets (API keys) go in environment variables, not here.
+
+mode: paper                 # paper = simulated fills against Kalshi's real order book; live = real orders
+paper_starting_balance: 1000
+poll_seconds: 2             # how often each trader's Polymarket activity is checked
+
+# Traders to copy. You can also add/stop them from the dashboard without redeploying.
+#   wallet:       the trader's 0x… address (on their Polymarket profile page / in the profile URL)
+#   weight:       share of YOUR equity allocated to this trader (keep the total of all weights <= 1.0)
+#   multiplier:   1.0 = exact proportional mirror; 0.5 = half-size copies
+#   bankroll_usd: optional. Polymarket's API reports a trader's marked position value, which can
+#                 leave out idle cash. If you know their real bankroll, set it for truer sizing.
+personas: []
+#  - name: whale1
+#    wallet: "0x0000000000000000000000000000000000000000"
+#    weight: 0.5
+#    multiplier: 1.0
+
+risk:
+  max_buy_slippage: 0.03          # never pay more than their price + 3¢
+  max_sell_slippage: 0.06         # exits accept down to their price − 6¢ (then retry)
+  max_trade_age_seconds: 600      # ignore buys noticed > 10 min late
+  max_trade_pct_of_allocation: 0.10   # one copied buy can use at most 10% of a persona's allocation
+  max_total_exposure_pct: 0.90    # keep at least 10% cash
+  daily_loss_limit_pct: 0.15      # pause new buys for the day after a 15% drawdown
+  min_order_usd: 1.0
+  min_price: 0.02
+  max_price: 0.98
+  fractional_contracts: false     # whole contracts only (safest across all Kalshi markets)
+  sell_retry_minutes: 30
+
+matching:
+  min_confidence: 0.90            # auto-trade only near-certain equivalent contracts
+  review_confidence: 0.60         # 0.60–0.90: ask you in the dashboard; below: skip
+  model: claude-sonnet-5-5
+  candidates: 6                   # Kalshi events shown to the judge per lookup
+  no_match_retry_hours: 6         # re-check "no match" markets later (Kalshi lists new ones)
+  index_refresh_minutes: 10
